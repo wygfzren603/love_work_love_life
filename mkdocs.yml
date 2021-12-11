@@ -1,1 +1,7 @@
-site_name: My Docs
+site_name: love work,love life!
+repo_url: https://github.com/wygfzren603/love_work_love_life.git
+
+nav:
+    - Home: index.md
+    - c/c++:
+      - 编程规范: cplusplus/programming_specification.md
