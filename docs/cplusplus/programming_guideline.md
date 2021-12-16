@@ -117,7 +117,19 @@ void func(int i, int j = 0){...} //true
 * 如何没有好的理由，则不要使用共享所有权；如果需要使用共享所有权，建议使用`std::shared_ptr<>`
 
 ## Cpplint
-用于检查风格错误
+用于检查风格错误，[下载](https://github.com/google/styleguide/blob/gh-pages/cpplint/cpplint.py)
+```
+pip install cpplint 
+cpplint.py      [--verbose=#] 
+                [--output=vs7] 
+                [--filter=-x,+y,...]
+                [--counting=total|toplevel|detailed] 
+                [--root=subdir]
+                [--linelength=digits] 
+                [--headers=x,y,...]
+                [--quiet]
+        <file> [file] ...
+```
 
 ## 其他C++特性
 

@@ -3,4 +3,10 @@
 ## 章节
 
 * c/c++
-    * `编程规范`
+    * [Guideline](cplusplus/programming_guideline.md)
+
+* deeplearning
+    - [CNN Attention](deeplearning/cnn_attention.md)
+    - [Model Distillation](deeplearning/model_distillation.md)
+    - [Model Quantization](deeplearning/model_quantization.md)
+    - [Object Detection](deeplearning/object_detection.md)

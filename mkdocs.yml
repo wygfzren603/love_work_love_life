@@ -40,4 +40,9 @@ markdown_extensions:
 nav:
     - Home: index.md
     - c/c++:
-      - 编程规范: cplusplus/programming_specification.md
+      - Guideline: cplusplus/programming_guideline.md
+    - deeplearning:
+      - CNN Attention: deeplearning/cnn_attention.md
+      - Model Distillation: deeplearning/model_distillation.md
+      - Model Quantization: deeplearning/model_quantization.md
+      - Object Detection: deeplearning/object_detection.md
