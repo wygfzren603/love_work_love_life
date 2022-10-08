@@ -111,12 +111,13 @@ Fast-RCNN在于进一步优化目标检测复杂度，其改进点如下：
 不足之处在于，Fast-RCNN仍然采用selective search算法来寻找感兴趣区域
 
 ### Faster-RCNN
-Faster-RCNN是目标检测的里程碑之作，在检测速度和精度上都有了很大提升，其中主要改进点在于去除了通过selective search算法寻找感兴趣区域来获取ROI，而是采用RPN网络来获取ROI。  
-RPN网络的结构如下：  
+Faster-RCNN是目标检测的里程碑之作，在检测速度和精度上都有了很大提升，其中主要改进点在于去除了通过selective search算法寻找感兴趣区域来获取ROI，而是采用RPN网络来获取ROI。[code](https://github.com/Kyle1993/simplest_FasterRcnn_pytorch)。  
+RPN网络的结构如下： 
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221008112724.png)
 
 * 假设网络输入为(N, 3, 224, 224), 则backbone特征最后一层输出为(N, 1024, 14, 14)
 * RPN网络的输入为(N, 1024, 14, 14)，输出分为两路，一路为分类输出(N, 2*num_anchors, 14, 14)，另一路为bbox回归输出(N, 4*num_anchors, 14, 14), 其中num_anchors为每个特征点的anchor数量  
-* 产生anchors，代码如下：
+* 产生anchors，以下为产生基本anchor的代码，然后将作用到feature map上得到所有的anchors：
 ```
 def _make_anchors(w, h, x_ctr, y_ctr):
     anchors = np.array([x_ctr-(w-1)/2, y_ctr-(h-1)/2, x_ctr+(w-1)/2, y_ctr+(h-1)/2])
@@ -151,3 +152,29 @@ def get_anchor_np(base_size, anchor_scales, anchor_ratios):
     return anchors.astype(np.float32)
 
 ```
+* proposal layer，将RPN网络的输出进行处理，得到最终的ROI，以下为proposal layer的流程：
+    * 将RPN网络输出的loc作用于anchors，得到bbox
+    * 对bbox的边界进行处理，使其不超过图片边界
+    * 去除太小的bbox
+    * 对bbox进行NMS
+    * 保留前N(eg:300)个bbox，作为ROI
+* anchors与gt进行配对
+对于一张图来说，anchors为(N, 4)，gt为(K, 4)，然后计算iou(N, K), 最后需要通过匹配策略得到class label(N, C)和regression label(N,4)，其中C为分类数量，匹配策略为：
+    * 从anchor的角度，如果一个anchor与所有GT的iou最大值大于一定的阈值（比如0.7）， 则这个anchor是正样本， 且其label为前景（RPN）或最大IOU对应的GT label（Fast rcnn）；
+    * 从GT的角度，对于一个GT，所有anchors与该GT的iou最大值对应的anchor为正样本，这样做的目的是为了让GT尽量有anchor与之匹配；
+    * 如果anchors与GT的IoU小于负样本阈值（比如0.3）， 则为负样本；
+    * 如果anchors与GT的IoU介于2者之间， 则是忽略样本。
+
+每个anchor匹配好gt后，还需要通过BBR计算regression label(tx, ty, tw, th)
+
+* 计算损失函数
+利用RPN网络的输出以及配对得到的label计算分类和回归损失，其中分类损失函数为交叉熵，回归损失函数为smooth L1 loss
+* 以上为RPN阶段（也就是第一阶段）的训练过程，接下来是第二阶段的训练过程，也就是Fast rcnn阶段，其训练过程如下：
+    * 将proposal layer得到的ROI与gt进行配对，其中iou大于pos_iou_thresh的为正样本，处于[neg_iou_thresh_lo, neg_iou_thresh_hi)之间的为负样本，得到sample_roi, class label和regression label
+    * 将sample_roi通过RoI pooling得到feature map，然后将feature map输入到Fast rcnn网络中，得到分类和回归的输出，注意这里的分类输出是n_class+1(包括背景类)，回归输出是n_class*4，比如n_class为21，则回归输出为84
+    * 计算分类和回归损失，分类损失函数为交叉熵，回归损失函数为smooth L1 loss，其中计算回归损失的时候，需要将回归输出reshape为(n_class, n_class+1, 4)，然后根据class label选择对应的回归输出，然后计算smooth L1 loss
+
+## One-Stage
+以上RCNN系列为two-stage方法，下面主要介绍one-stage方法，one-stage方法的主要思想是将RPN和Fast rcnn合并为一个网络，这样就可以减少一次forward的计算，提高速度。
+
+### SSD
