@@ -10,3 +10,6 @@
     - [Model Distillation](deeplearning/model_distillation.md)
     - [Model Quantization](deeplearning/model_quantization.md)
     - [Object Detection](deeplearning/object_detection.md)
+      - [anchor based]()
+      - [anchor free]()
+    - [Activation Function](deeplearning/activation_function.md)
