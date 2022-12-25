@@ -238,21 +238,177 @@ YOLOv2的训练主要包括三个阶段：
 * 第二阶段将网络的输入调整为448*448,继续在ImageNet数据集上finetune分类模型，训练10个epochs，此时分类模型的top-1准确度为76.5%，而top-5准确度为93.3%。
 * 第三个阶段就是修改Darknet-19分类模型为检测模型，并在检测数据集上继续finetune网络。
 
+### YOLOV3
+[[paper](https://arxiv.org/pdf/1804.02767.pdf)][[code](https://github.com/BobLiu20/YOLOv3_PyTorch)]
+
+YOLOV3主要的改进在于借鉴了RetinaNet的特征金字塔，YOLOV3的结构如下图所示：
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221106194850.png)
+
+YOLOV3的anchor仍然采用k-means聚类得到。  
+
+YOLOV3的loss计算方法，我们以特征金字塔的一层输出为例来说明：
+
+* 假设该层featuremap的大小为(fh, fw)，则检测模型输出为pred(bs, (num_anchors*(5+num_class)), fh, fw)
+* 在计算loss时，需要将输出reshape为(bs, num_anchors, fh, fw, 5+num_class)
+* 然后就是计算target，target的计算包括mask, noobj_mask, tx，ty，tw，th，tconf，tcls，其中tcls的shape为(bs, num_anchors, fh, fw, num_class),其它都是(bs, num_anchors, fh, fw)
+* target计算时就是遍历batch中每张图像中的每个gt_box，计算gt_box与anchor（注意这里的anchor需要进行缩处理，系数为featuremap的下采样系数）的iou，找到iou最大对应的anchor；计算gt_box对应的格点位置、offset、log(宽高比)等，最后将这些值分别填入target中
+* 最后pred和target一起计算loss
+
+### YOLOV4
+[[paper](https://arxiv.org/pdf/2004.10934.pdf)][[code](https://github.com/bubbliiiing/yolov4-pytorch)]
+YOLOV4主要是用到了很多tricks，相当于一个tricks大总结。
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20200529113027261.jpg)
+以下对一些tricks进行简单介绍：
+
+1. 各种IOU Loss
+    - IoU Loss：IoU算法是使用最广泛的算法，大部分的检测算法都是使用的这个算法。
+    - GIoU Loss：GIoU考虑到，当检测框和真实框没有出现重叠的时候IoU的loss都是一样的，因此GIoU就加入了C检测框（C检测框是包含了检测框和真实框的最小矩形框），这样就可以解决检测框和真实框没有重叠的问题。但是当检测框和真实框之间出现包含的现象的时候GIoU就和IoU loss是同样的效果了。
+    - DIoU Loss：DIoU考虑到GIoU的缺点，也是增加了C检测框，将真实框和预测框都包含了进来，但是DIoU计算的不是框之间的交并，而是计算的每个检测框之间的欧氏距离，这样就可以解决GIoU包含出现的问题
+    - CIoU Loss：CIoU就是在DIoU的基础上增加了检测框尺度的loss，增加了长和宽的loss，这样预测框就会更加的符合真实框
+
+### YOLOV5
+[[paper](https://arxiv.org/pdf/2004.10934.pdf)][[code](
+
+
 
 ### RetinaNet
-[code](https://github.com/yhenon/pytorch-retinanet)
+[[paper](https://arxiv.org/pdf/1708.02002.pdf)][[code](https://github.com/yhenon/pytorch-retinanet)]
+RetinaNet是一个一阶段的anchor-based的检测模型，其性能开始超过二阶段模型。RetinaNet主要的trick是使用了Focal Loss，FPN，后期的检测模型基本都是以此范式来进行设计的。
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221212102130.png)
+
+RetinaNet的输出为：
+* cls：list[(batch_size, num_anchors * num_classes, featuremap_h, featuremap_w)]
+* reg：list[(batch_size, num_anchors * 4, featuremap_h, featuremap_w)]
+
+其中FPN各层的输出是共享参数的。
+
+下面主要分析RetinaNet的loss计算方式，这其实是各种目标检测算法的核心，也是各种目标检测算法的不同之处。[可参考](https://blog.csdn.net/weixin_41981679/article/details/123823507)
+
 
 ### FCOS
+[[paper](https://arxiv.org/pdf/1904.01355.pdf)][[code](https://github.com/open-mmlab/mmdetection/blob/master/mmdet/models/dense_heads/fcos_head.py)]
 
-### CenterNet
+FCOS是一个anchor-free的检测模型，其没有采用anchor的方式来预测检测框，而是直接通过特征点来预测类别和检测框，如下图：
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221204165945.png)
 
-### CornerNet
+下面主要分析FCOS的的loss计算方式，这其实是各种目标检测算法的核心，也是各种目标检测算法的不同之处。
+
+首先我们看下FCOS的输出：
+
+* cls：list[(bs, num_class, fh, fw)]
+* reg：list[(bs, 4, fh, fw)]
+* centerness：list[(bs, 1, fh, fw)]
+
+注意：FCOS中的head各层是共享参数的
+
+接下来我们看如何得到target：
+
+* 由于每张图标注的真实框数量不一样，因此我们需要对每张图单独计算target，计算target需要:
+    * points (list[Tensor]): Points of each fpn level, each has shape
+                (num_points, 2).
+    * gt_bboxes_list (list[Tensor]): Ground truth bboxes of each image,
+                each has shape (num_gt, 4).
+    * gt_labels_list (list[Tensor]): Ground truth labels of each box,
+                each has shape (num_gt,).
+    * regress_ranges (tuple[tuple[int, int]]): Regress range of multiple
+            level points.
+* 将fpn的各层points连接起来转换成一个tensor，shape为(num_points, 2)
+* 将regress_ranges根据points进行扩展后转换成一个tensor，shape为(num_points, 2)
+* 计算每个真实框的面积area，并扩展为(num_points, gt_nums)
+* 然后计算每个特征点的边框回归值，这里的边框回归值指的是特征点到真实框上下左右的距离(left, top, right, bottom)，shape为(num_points, gt_nums, 4)
+* 找到每个特征点到真实框的最小距离，shape为(num_points, gt_nums)，最小距离大于0的点就是正样本，小于0的点就是负样本。这里还有一种center sample的方法，就是只将 gt_bbox 周围 stride*radius 范围内的点当成正样本
+* 找到每个特征点的最大距离，shape为(num_points, gt_nums)，最大距离在对应的regress_range之间的点就是正样本，否则为负样本
+* 然后将以上两种方法得到的负样本对应的area设置为INF，最后再按行计算每个特征点对应的最小面积真实框，这样就保证了每个特征点只对应一个真实框或背景
+* 最后对每个点分配label和box_target，label的shape为(num_points, )，box_target的shape为(num_points, 4)
+* 以上为label和box_target的计算，接下来计算centerness_target，只有正样本才计算centerness，其计算方式如下：
+
+$$
+centerness^* = \sqrt{\frac{min(l^*, r^*)}{max(l^*, r^*)} \times \frac{min(t^*, b^*)}{max(t^*, b^*)}}
+$$
+
+得到了label，box_target，centerness_target后，就可以计算loss了，计算loss的方式如下：
+
+* cls_loss = FocalLoss()(cls, label)
+* reg_loss = IoULoss()(reg, box_target)
+* centerness_loss = CrossEntropyLoss()(centerness, centerness_target)
+
+### YOLOVX
+[[paper](https://arxiv.org/pdf/2107.08430.pdf)][[code](https://github.com/Megvii-BaseDetection/YOLOX)]
+
+YOLOX是贵司出品的anchor-free的检测算法，结构如下：
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221225222017.png)
+
+主要贡献：
+
+* Decoupled Head
+
+第一个改进就是YOLOv3的head部分。一直以来，YOLO工作都是仅使用一个branch就同时完成obj、cls以及reg三部分的预测。而我们所熟知的RetinaNet则是使用两个并行分支去分别做cls和reg的预测。YOLOX作者认为仅使用一个分支是不合适的，于是，就把原先的Coupled head改成类似于RetinaNet的那种Decoupled head
+
+* 数据增强：Mosaic和Mix-up
+
+YOLOX继续给baseline增加了Mosaic和Mix-up两个数据增强手段。在训练的最后15个epoch，这两个数据增强会被关闭掉。这是因为这两个数据增强往往会产生出一些不好的图片，对数据分布有太大的改动，如下图展示的一些例子，其中很多目标是不会出现在真实场景中的，尽管这有助于提升模型的鲁棒性和泛化性，但是，在一定程度上，也会破坏数据的真实分布，使得模型学习到一些不好的信息。为了缓解这个问题，在训练的最后15 epoch，马赛克增强和混合增强会被关闭，仅保留随机水平翻转和颜色扰动两个较为简单的数据增强操作，以便让网络修正一些从马赛克增强和混合增强中学到的不好的信息。这是YOLOX工作给出的一个很实用的训练经验。
+
+使用强大的数据增强后，ImageNet预训练模型无益，所有后续模型都是随机初始化权重。
+
+* Anchor-free
+
+基本按照FCOS的套路
+
+* Multi positives
+
+在完成了anchor-free化的改进后，我们会发现一个问题，那就是一个gt框只有一个正样本，也就是one-to-one，这个问题所带来的最大阻碍就是训练时间会很长，同时收敛速度很慢。为了缓解这一问题，YOLOX作者便自然想到可以增加正样本的数量，使用one-to-many策略。很简单，之前只考虑中心点所在的网格，这会改成以中心点所在的网格的3x3邻域，都作为正样本，直观上来看，正样本数量增加至9倍。每个grid都去学到目标中心点的偏移量和宽高
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221225223846.png)
+
+* SimOTA
+
+假设我们已经将YOLOv3的三个尺度的输出都已经沿着空间维度拼接了起来，得到最后的输出：$Y_{conf}\in \Re^{M\times 1}$ 、$Y_{cls}\in \Re^{M\times N_c}$  以及$Y_{reg}\in \Re^{M\times 4}$，其中$M=H_1W_1+H_2W_2+H_3W_3$。同时，我们假设目标框的类别标签为$\hat{Y}_{cls}\in \Re^{N\times N_c}$，位置标签为$\hat{Y}_{reg}\in \Re^{N\times 4}$，其中$N$是目标的数量，类别标签采用了one-hot格式。
+
+首先，我们将置信度预测与类别预测相乘得到完整的类别预测$Y_{cls}=\sqrt{Y_{conf}Y_{cls}}$，注意，乘积外开了跟根号，这可能是借鉴了FCOS，因为$Y_{conf}$和$Y_{cls}$都是01之间的值，两个小于1的数值相乘只会更小，所以，开放可以缓解这个问题。然后，我们就计算预测框与目标框之间的类别代价$C_{cls}\in \Re^{M\times N}$，其中$C_{cls}(i, j)$表示第$i$个预测框与第$j$个目标框之间的类别代价，即BCE损失：
+$$
+C_{cls}(i, j)=\sum_{c}BCE(Y_{cls}(i, c), \hat{Y}_{cls}(j, c))
+$$
+
+同理，我们使用GIoU损失去计算预测框与目标框的回归代价$C_{reg}\in \Re^{M\times N}$，其中$C_{reg}(i,j)$表示第$i$个预测框与第$j$个目标框之间的GIoU损失：
+$$
+C_{reg}(i, j)=1-GIoU(Y_{reg}(i), \hat{Y}_{reg}(j))
+$$
+
+那么，总的代价就是二者的加权和：
+$$
+C_{tot}(i, j)=C_{cls}+\gamma C_{reg}
+$$
+其中，$\gamma$为权重因子。但是，这里我们需要考虑一个事实，那就是不是所有的预测框都有必要去和目标框计算代价。经验上来说，对于处在边界框之外的网格（亦称之为anchor）一般是不会检测到物体的，而中心区域往往会给出一些质量较高的预测，至少，有效的预测也是在目标框内。所以，SimOTA将目标框的中心点邻域（如3x3邻域或5x5邻域）目和标框范围内的anchors视作正样本候选，即正样本只会来自于这些区域，而边界框之外的网格统统视作负样本候选。
+
+```
+cost = (
+            pair_wise_cls_loss
+            + 3.0 * pair_wise_ious_loss
+            + 100000.0 * (~is_in_boxes_and_center)
+        )
+```
+然后开始构建矩阵，一个矩阵是筛选出的样本点与所有GT的cost矩阵，另一个矩阵时筛选出的样本点与所有GT的IoU矩阵，如下图所示：
+![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221225233640.png)
+
+IoU矩阵横向求和并向下取整后得到的值即为该GT所要分配的正样本数k，这种策略在OTA一文中称为dynamic k estimation。对于GT1而言，需要分配3个正样本，那么在cost矩阵中GT1一行中将cost由小到大排序后选择前三个样本点作为正样本，即样本点1、样本点6、样本点2。以此类推对GT2和GT3的正样本进行分配。
+
+值得注意的一种特殊情况是：若某一个样本点被同时分配给了多个GT，比如样本点3倍同时分配给了GT2和GT3，那么这时候那个GT的cost小，就由哪个GT进行分配。
+
 
 ### ATSS
+[[paper](https://arxiv.org/abs/1912.02424)] [[code](https://github.com/sfzhang15/ATSS/blob/master/atss_core/modeling/rpn/atss/loss.py)]
 
-### FoveaBox
+论文指出one-stage anchor-based和center-based anchor-free检测算法间的差异主要来自于正负样本的选择，基于此提出ATSS(Adaptive Training Sample Selection)方法，该方法能够自动根据GT的相关统计特征选择合适的anchor box作为正样本，在不带来额外计算量和参数的情况下，能够大幅提升模型的性能，十分有用。
+论文的主要贡献如下：
 
-### NAS-FPN
+* 指出anchor-free和anchor-based方法的根本差异主要来源于正负样本的选择；
+* 提出ATSS( Adaptive Training Sample Selection)方法来根据对象的统计特征自动选择正负样本；
+* 证明每个位置设定多个anchor是无用的操作；
+* 不引入其它额外的开销，在MS COCO上达到SOTA。
 
-### NAS-FCOS
+该方法根据目标的相关统计特征自动进行正负样本的选择。
+
+* 对于每个GT box $g$，首先在每个特征层找到中心点最近的$k$个候选anchor boxes(非预测结果)。
+* 计算候选box与GT间的IoU$D_g$，计算IoU的均值$m_g$和标准差$v_g$，
+* 得到IoU阈值$t_g=m_g+v_g$
+* 选择阈值大于$t_g$的box作为最后的输出。如果anchor box对应多个GT，则选择IoU最大的GT。
 
