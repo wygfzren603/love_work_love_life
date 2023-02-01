@@ -14,6 +14,7 @@ graph LR;
 
 * two-stage
 * one-stage
+
 或者
 
 * anchor-based
@@ -267,9 +268,7 @@ YOLOV4主要是用到了很多tricks，相当于一个tricks大总结。
     - CIoU Loss：CIoU就是在DIoU的基础上增加了检测框尺度的loss，增加了长和宽的loss，这样预测框就会更加的符合真实框
 
 ### YOLOV5
-[[paper](https://arxiv.org/pdf/2004.10934.pdf)][[code](
-
-
+[[paper](https://arxiv.org/pdf/2004.10934.pdf)]
 
 ### RetinaNet
 [[paper](https://arxiv.org/pdf/1708.02002.pdf)][[code](https://github.com/yhenon/pytorch-retinanet)]
@@ -277,6 +276,7 @@ RetinaNet是一个一阶段的anchor-based的检测模型，其性能开始超�
 ![](https://raw.githubusercontent.com/wygfzren603/love_work_love_life/main/imgs/20221212102130.png)
 
 RetinaNet的输出为：
+
 * cls：list[(batch_size, num_anchors * num_classes, featuremap_h, featuremap_w)]
 * reg：list[(batch_size, num_anchors * 4, featuremap_h, featuremap_w)]
 
